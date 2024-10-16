@@ -6,17 +6,11 @@ use std::process::Command;
 
 fn main() -> io::Result<()> {
     // Check if yq is installed
-    if Command::new("command")
-        .arg("-v")
-        .arg("yq")
-        .output()
-        .is_err()
-    {
+    if Command::new("yq").output().is_err() {
         println!("yq not found, attempting to download.");
         let url = "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64";
         let output_path = "/usr/bin/yq";
         if download_yq(url, output_path).is_ok() {
-            // Set executable permissions
             let _ = Command::new("chmod").arg("+x").arg(output_path).output()?;
         } else {
             eprintln!("ERROR: Unable to get yq");
@@ -25,7 +19,6 @@ fn main() -> io::Result<()> {
     }
     let mut path = String::new();
     let mut trimmed_path = String::new();
-    // let mut cnf = String::new();
     // check if the config file exists
     if !conf_check() {
         // get the location for storing the backup yaml
@@ -62,9 +55,13 @@ fn main() -> io::Result<()> {
             let names = get_resource_names(kind, &ns)?;
             for name in names {
                 let dir = format!("{}/{}/{}", trimmed_path, ns, kind);
+                // println!("dir: {}", dir);
+
                 fs::create_dir_all(&dir)?;
                 let yaml = get_resource_yaml(kind, &name, &ns)?;
+
                 let cleaned_yaml = clean_yaml(&yaml)?;
+
                 let file_path = format!("{}/{}.yml", dir, name);
                 fs::write(&file_path, cleaned_yaml)?;
             }
@@ -90,43 +87,20 @@ fn conf_check() -> bool {
 fn get_path() -> String {
     let data = fs::read_to_string("/etc/opt/.yamlBackup.conf").expect("File not found!");
     let actual_path: Vec<&str> = data.split_whitespace().collect();
-    // let array: [&str; 1] = [actual_path[1]];
     actual_path[1].to_string()
-    // for word in &array {
-    //     println!("{}", word);
-    // }
 }
 
 fn download_yq(url: &str, output_path: &str) -> io::Result<()> {
-    if Command::new("command")
-        .arg("-v")
-        .arg("wget")
-        .output()
-        .is_err()
-    {
-        println!("wget not found, attempting to download.");
-        let output = Command::new("yum")
-            .arg("install")
-            .arg("wget")
-            .arg("-y")
-            .output()?;
-
-        if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "Unable to get wget"));
-        }
-        Ok(())
-    } else {
-        let output = Command::new("wget")
-            .arg(url)
-            .arg("-O")
-            .arg(output_path)
-            .output()?;
-
-        if !output.status.success() {
-            return Err(io::Error::new(io::ErrorKind::Other, "Download failed"));
-        }
-        Ok(())
+    let output = Command::new("curl")
+        .arg("-L")
+        .arg(url)
+        .arg("-o")
+        .arg(output_path)
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Download failed"));
     }
+    Ok(())
 }
 
 fn get_namespaces() -> io::Result<Vec<String>> {
